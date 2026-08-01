@@ -1,0 +1,42 @@
+#include <stdio.h>
+#include <string.h>
+
+int main()
+{
+    char str[100];
+    int len, i = 0, j, zeros = 0, ones = 0, flag = 1;
+
+    printf("Enter the string: ");
+    scanf("%s", str);
+
+    len = strlen(str);
+    j = len - 1;
+
+    /* Count leading 0's */
+    while(i < len && str[i] == '0')
+    {
+        zeros++;
+        i++;
+    }
+
+    /* Count trailing 1's */
+    while(j >= 0 && str[j] == '1')
+    {
+        ones++;
+        j--;
+    }
+
+    /* Check for extra characters */
+    if(i <= j)
+        flag = 0;
+
+    if(zeros != ones)
+        flag = 0;
+
+    if(flag)
+        printf("The string belongs to the grammar.\n");
+    else
+        printf("The string does not belong to the grammar.\n");
+
+    return 0;
+}
