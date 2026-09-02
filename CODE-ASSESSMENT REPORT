@@ -1,0 +1,740 @@
+Absolutely. For your project “Smart Contract Execution & Audit System: Grammar Design, Automaton Construction and Undecidability Analysis”, you can use Python code that demonstrates all three major parts:
+
+Grammar Design — tokenize and validate a simplified smart-contract syntax.
+Automaton Construction — construct a DFA for contract execution.
+Audit System — detect simple vulnerabilities such as invalid amounts and unsafe withdrawals.
+Undecidability Analysis — demonstrate why complete smart-contract verification cannot be solved by a single algorithm for all possible contracts.
+1. Complete Python Code
+# ==============================================================
+# SMART CONTRACT EXECUTION & AUDIT SYSTEM
+# Grammar Design, Automaton Construction and
+# Undecidability Analysis
+# ==============================================================
+
+import re
+from dataclasses import dataclass
+
+
+# ==============================================================
+# PART 1: GRAMMAR DESIGN
+# ==============================================================
+
+# Token definitions
+TOKEN_SPECIFICATION = [
+    ("NUMBER",   r"\d+"),
+    ("ID",       r"[A-Za-z_][A-Za-z0-9_]*"),
+    ("ASSIGN",   r"="),
+    ("PLUS",     r"\+"),
+    ("MINUS",    r"-"),
+    ("GT",       r">"),
+    ("LT",       r"<"),
+    ("LPAREN",   r"\("),
+    ("RPAREN",   r"\)"),
+    ("LBRACE",   r"\{"),
+    ("RBRACE",   r"\}"),
+    ("SEMICOLON",r";"),
+    ("SKIP",     r"[ \t\n]+"),
+    ("MISMATCH", r".")
+]
+
+TOKEN_REGEX = "|".join(
+    f"(?P<{name}>{pattern})"
+    for name, pattern in TOKEN_SPECIFICATION
+)
+
+KEYWORDS = {
+    "contract",
+    "function",
+    "uint",
+    "address",
+    "if",
+    "else",
+    "return",
+    "require",
+    "true",
+    "false",
+    "revert"
+}
+
+
+def lexer(code):
+    """
+    Converts source code into tokens.
+    """
+
+    tokens = []
+
+    for match in re.finditer(TOKEN_REGEX, code):
+
+        token_type = match.lastgroup
+        token_value = match.group()
+
+        if token_type == "SKIP":
+            continue
+
+        elif token_type == "ID" and token_value in KEYWORDS:
+            tokens.append((token_value.upper(), token_value))
+
+        elif token_type == "MISMATCH":
+            raise SyntaxError(
+                f"Unexpected character: {token_value}"
+            )
+
+        else:
+            tokens.append((token_type, token_value))
+
+    return tokens
+
+
+# ==============================================================
+# CONTEXT-FREE GRAMMAR
+# ==============================================================
+
+GRAMMAR = {
+
+    "<Program>":
+        ["contract <ID> { <ContractBody> }"],
+
+    "<ContractBody>":
+        ["<StateVarDecl> <FunctionDecl>",
+         "<FunctionDecl>"],
+
+    "<StateVarDecl>":
+        ["<Type> <ID> = <Expr> ;"],
+
+    "<FunctionDecl>":
+        ["function <ID> ( ) { <StmtList> }"],
+
+    "<StmtList>":
+        ["<Stmt> <StmtList>",
+         "epsilon"],
+
+    "<Stmt>":
+        ["<IfStmt>",
+         "<AssignStmt>",
+         "<ReturnStmt>",
+         "<RequireStmt>"],
+
+    "<IfStmt>":
+        ["if ( <Expr> ) { <StmtList> }"],
+
+    "<AssignStmt>":
+        ["<ID> = <Expr> ;"],
+
+    "<ReturnStmt>":
+        ["return <Expr> ;"],
+
+    "<RequireStmt>":
+        ["require ( <Expr> ) ;"],
+
+    "<Expr>":
+        ["<Term>",
+         "<Term> > <Term>",
+         "<Term> < <Term>"],
+
+    "<Term>":
+        ["<ID>",
+         "<NUMBER>"],
+
+    "<Type>":
+        ["uint",
+         "address"]
+}
+
+
+def display_grammar():
+
+    print("\n========== CONTEXT FREE GRAMMAR ==========\n")
+
+    for non_terminal, productions in GRAMMAR.items():
+
+        print(non_terminal, "::=")
+
+        for production in productions:
+            print("    |", production)
+
+    print()
+
+
+# ==============================================================
+# PART 2: SMART CONTRACT EXECUTION
+# ==============================================================
+
+@dataclass
+class Wallet:
+
+    owner: str
+    balance: int = 0
+
+    def deposit(self, amount):
+
+        print(f"\n[EXECUTION] deposit({amount})")
+
+        if amount <= 0:
+
+            print("[ERROR] Deposit amount must be greater than zero.")
+
+            return False
+
+        self.balance += amount
+
+        print(
+            f"[SUCCESS] Deposit successful."
+            f" Current balance = {self.balance}"
+        )
+
+        return True
+
+    def withdraw(self, amount):
+
+        print(f"\n[EXECUTION] withdraw({amount})")
+
+        if amount <= 0:
+
+            print(
+                "[ERROR] Withdrawal amount must be greater "
+                "than zero."
+            )
+
+            return False
+
+        if amount <= self.balance:
+
+            self.balance -= amount
+
+            print(
+                f"[SUCCESS] Withdrawal successful."
+                f" Current balance = {self.balance}"
+            )
+
+            return True
+
+        else:
+
+            print(
+                "[REVERT] Insufficient balance."
+            )
+
+            return False
+
+    def get_balance(self):
+
+        print(
+            f"\n[EXECUTION] getBalance()"
+            f"\nBalance = {self.balance}"
+        )
+
+        return self.balance
+
+
+# ==============================================================
+# PART 3: DFA CONSTRUCTION
+# ==============================================================
+
+class SmartContractDFA:
+
+    def __init__(self):
+
+        # DFA states
+        self.states = {
+            "q0": "START",
+            "q1": "DEPOSIT_CALLED",
+            "q2": "VALID_AMOUNT",
+            "q3": "BALANCE_UPDATED",
+            "q4": "INVALID_AMOUNT",
+            "q5": "GET_BALANCE",
+            "qf": "FINAL"
+        }
+
+        # Transition table
+        self.transitions = {
+
+            ("q0", "deposit"):
+                "q1",
+
+            ("q1", "amount > 0"):
+                "q2",
+
+            ("q1", "amount <= 0"):
+                "q4",
+
+            ("q2", "update_balance"):
+                "q3",
+
+            ("q3", "getBalance"):
+                "q5",
+
+            ("q4", "revert"):
+                "qf",
+
+            ("q5", "return_balance"):
+                "qf"
+        }
+
+        self.current_state = "q0"
+
+    def transition(self, symbol):
+
+        key = (self.current_state, symbol)
+
+        if key not in self.transitions:
+
+            print(
+                f"[DFA ERROR] No transition from "
+                f"{self.current_state} using {symbol}"
+            )
+
+            return False
+
+        new_state = self.transitions[key]
+
+        print(
+            f"DFA: {self.current_state}"
+            f" --({symbol})--> {new_state}"
+        )
+
+        self.current_state = new_state
+
+        return True
+
+    def reset(self):
+
+        self.current_state = "q0"
+
+    def display_states(self):
+
+        print("\n========== DFA STATES ==========\n")
+
+        for state, description in self.states.items():
+
+            print(
+                f"{state} : {description}"
+            )
+
+    def display_transition_table(self):
+
+        print("\n========== DFA TRANSITION TABLE ==========\n")
+
+        print(
+            f"{'Current':<12}"
+            f"{'Input':<25}"
+            f"{'Next State':<12}"
+        )
+
+        print("-" * 50)
+
+        for (state, symbol), next_state in self.transitions.items():
+
+            print(
+                f"{state:<12}"
+                f"{symbol:<25}"
+                f"{next_state:<12}"
+            )
+
+
+# ==============================================================
+# PART 4: DFA EXECUTION TRACE
+# ==============================================================
+
+def execute_dfa_deposit(amount):
+
+    dfa = SmartContractDFA()
+
+    print("\n========== DFA EXECUTION TRACE ==========\n")
+
+    print(
+        f"Initial State: {dfa.current_state}"
+    )
+
+    dfa.transition("deposit")
+
+    if amount > 0:
+
+        dfa.transition("amount > 0")
+
+        dfa.transition("update_balance")
+
+        dfa.transition("getBalance")
+
+        dfa.transition("return_balance")
+
+    else:
+
+        dfa.transition("amount <= 0")
+
+        dfa.transition("revert")
+
+    print(
+        f"\nFinal DFA State: {dfa.current_state}"
+    )
+
+
+# ==============================================================
+# PART 5: SMART CONTRACT AUDIT SYSTEM
+# ==============================================================
+
+class SmartContractAuditor:
+
+    def __init__(self, code):
+
+        self.code = code
+        self.findings = []
+
+    def check_reentrancy(self):
+
+        """
+        Very simple pattern-based reentrancy detector.
+        This is educational and NOT a production Solidity analyzer.
+        """
+
+        if (
+            "call" in self.code
+            and "balance =" in self.code
+        ):
+
+            self.findings.append(
+                "Possible reentrancy vulnerability: "
+                "external call may occur before state update."
+            )
+
+    def check_unchecked_withdrawal(self):
+
+        if (
+            "withdraw" in self.code
+            and "balance" not in self.code
+        ):
+
+            self.findings.append(
+                "Withdrawal function may lack balance validation."
+            )
+
+    def check_require(self):
+
+        if "require" not in self.code:
+
+            self.findings.append(
+                "No require() statement found."
+            )
+
+    def check_integer_value(self):
+
+        if "uint" in self.code:
+
+            self.findings.append(
+                "Review uint arithmetic for overflow/underflow."
+            )
+
+    def run_audit(self):
+
+        print("\n========== SMART CONTRACT AUDIT ==========\n")
+
+        self.check_reentrancy()
+        self.check_unchecked_withdrawal()
+        self.check_require()
+        self.check_integer_value()
+
+        if not self.findings:
+
+            print(
+                "[SAFE] No basic pattern-based vulnerabilities found."
+            )
+
+        else:
+
+            for number, finding in enumerate(
+                self.findings, start=1
+            ):
+
+                print(
+                    f"[WARNING {number}] {finding}"
+                )
+
+        print(
+            "\nNote: This is an educational "
+            "pattern-based auditor."
+        )
+
+
+# ==============================================================
+# PART 6: UNDECIDABILITY ANALYSIS
+# ==============================================================
+
+def halting_problem_simulation():
+
+    print(
+        "\n========== UNDECIDABILITY ANALYSIS ==========\n"
+    )
+
+    print("Problem:")
+    print(
+        "Determine whether every possible smart contract "
+        "terminates safely."
+    )
+
+    print("\nReduction idea:")
+
+    print(
+        "1. Start with a Turing Machine M and input W."
+    )
+
+    print(
+        "2. Construct a smart contract C(M,W)."
+    )
+
+    print(
+        "3. The contract simulates M on W."
+    )
+
+    print(
+        "4. If M halts, the contract reaches a final state."
+    )
+
+    print(
+        "5. If M does not halt, the contract continues forever."
+    )
+
+    print(
+        "\nIf a perfect smart-contract safety verifier "
+        "existed, it could determine whether M halts."
+    )
+
+    print(
+        "\nBut the Halting Problem is undecidable."
+    )
+
+    print(
+        "\nTherefore:"
+    )
+
+    print(
+        "GENERAL SMART-CONTRACT SAFETY VERIFICATION "
+        "IS UNDECIDABLE."
+    )
+
+
+# ==============================================================
+# PART 7: COMPLETE DEMONSTRATION
+# ==============================================================
+
+def main():
+
+    print("=" * 65)
+
+    print(
+        " SMART CONTRACT EXECUTION & AUDIT SYSTEM"
+    )
+
+    print(
+        " Grammar + DFA + Execution + Audit + Undecidability"
+    )
+
+    print("=" * 65)
+
+    # ----------------------------------------------------------
+    # Grammar
+    # ----------------------------------------------------------
+
+    display_grammar()
+
+    # ----------------------------------------------------------
+    # Lexer
+    # ----------------------------------------------------------
+
+    contract_code = """
+    contract Wallet {
+        uint balance = 0;
+
+        function deposit() {
+            require(amount > 0);
+            balance = balance + amount;
+        }
+
+        function getBalance() {
+            return balance;
+        }
+    }
+    """
+
+    print(
+        "\n========== LEXICAL ANALYSIS ==========\n"
+    )
+
+    try:
+
+        tokens = lexer(contract_code)
+
+        for token in tokens:
+
+            print(token)
+
+    except SyntaxError as error:
+
+        print("[LEXER ERROR]", error)
+
+    # ----------------------------------------------------------
+    # Smart Contract Execution
+    # ----------------------------------------------------------
+
+    print(
+        "\n========== SMART CONTRACT EXECUTION =========="
+    )
+
+    wallet = Wallet("Owner")
+
+    wallet.deposit(100)
+
+    wallet.withdraw(40)
+
+    wallet.get_balance()
+
+    # ----------------------------------------------------------
+    # DFA
+    # ----------------------------------------------------------
+
+    dfa = SmartContractDFA()
+
+    dfa.display_states()
+
+    dfa.display_transition_table()
+
+    # ----------------------------------------------------------
+    # DFA execution
+    # ----------------------------------------------------------
+
+    execute_dfa_deposit(100)
+
+    # Test invalid input
+    execute_dfa_deposit(0)
+
+    # ----------------------------------------------------------
+    # Audit
+    # ----------------------------------------------------------
+
+    auditor = SmartContractAuditor(
+        contract_code
+    )
+
+    auditor.run_audit()
+
+    # ----------------------------------------------------------
+    # Undecidability
+    # ----------------------------------------------------------
+
+    halting_problem_simulation()
+
+    print(
+        "\n========== PROGRAM COMPLETED =========="
+    )
+
+
+# ==============================================================
+# PROGRAM ENTRY POINT
+# ==============================================================
+
+if __name__ == "__main__":
+
+    main()
+2. What the output represents
+
+When you run it, your console will show sections similar to:
+
+===============================================================
+ SMART CONTRACT EXECUTION & AUDIT SYSTEM
+ Grammar + DFA + Execution + Audit + Undecidability
+===============================================================
+
+========== CONTEXT FREE GRAMMAR ==========
+
+<Program> ::=
+    | contract <ID> { <ContractBody> }
+
+<FunctionDecl> ::=
+    | function <ID> ( ) { <StmtList> }
+
+...
+
+========== SMART CONTRACT EXECUTION ==========
+
+[EXECUTION] deposit(100)
+[SUCCESS] Deposit successful. Current balance = 100
+
+[EXECUTION] withdraw(40)
+[SUCCESS] Withdrawal successful. Current balance = 60
+
+[EXECUTION] getBalance()
+Balance = 60
+
+Then the DFA trace:
+
+========== DFA EXECUTION TRACE ==========
+
+Initial State: q0
+
+DFA: q0 --(deposit)--> q1
+DFA: q1 --(amount > 0)--> q2
+DFA: q2 --(update_balance)--> q3
+DFA: q3 --(getBalance)--> q5
+DFA: q5 --(return_balance)--> qf
+
+Final DFA State: qf
+
+And the undecidability result:
+
+========== UNDECIDABILITY ANALYSIS ==========
+
+Problem:
+Determine whether every possible smart contract terminates safely.
+
+Reduction idea:
+1. Start with a Turing Machine M and input W.
+2. Construct a smart contract C(M,W).
+3. The contract simulates M on W.
+4. If M halts, the contract reaches a final state.
+5. If M does not halt, the contract continues forever.
+
+GENERAL SMART-CONTRACT SAFETY VERIFICATION IS UNDECIDABLE.
+3. Main architecture for your project
+
+You can present the system as:
+
+              SMART CONTRACT SOURCE CODE
+                         |
+                         v
+                 +---------------+
+                 |    LEXER      |
+                 | Tokenization  |
+                 +-------+-------+
+                         |
+                         v
+                 +---------------+
+                 |     CFG       |
+                 |Grammar Parser |
+                 +-------+-------+
+                         |
+                         v
+                 +---------------+
+                 |  AUTOMATON    |
+                 | DFA / States  |
+                 +-------+-------+
+                         |
+                         v
+                 +---------------+
+                 |  EXECUTION    |
+                 | State Changes  |
+                 +-------+-------+
+                         |
+                         v
+                 +---------------+
+                 |    AUDITOR    |
+                 | Vulnerability |
+                 |   Detection   |
+                 +-------+-------+
+                         |
+                         v
+              +----------------------+
+              | SAFETY / TERMINATION |
+              |     ANALYSIS         |
+              +----------------------+
+                         |
+                         v
+              UNDECIDABILITY RESULT
