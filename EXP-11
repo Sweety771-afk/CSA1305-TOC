@@ -1,0 +1,19 @@
+#include <stdio.h>
+int adj[20][20], n, vis[20];
+void dfs(int s){
+    vis[s]=1;
+    for(int j=0;j<n;j++) if(adj[s][j]&&!vis[j]) dfs(j);
+}
+int main(){
+    int e; scanf("%d %d",&n,&e);
+    for(int i=0;i<e;i++){ int a,b; scanf("%d %d",&a,&b); adj[a][b]=1; }
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n;j++) vis[j]=0;
+        dfs(i);
+        printf("ec(%d)={",i);
+        int f=1;
+        for(int j=0;j<n;j++) if(vis[j]){ if(!f) printf(","); printf("%d",j); f=0; }
+        printf("}\n");
+    }
+    return 0;
+}
